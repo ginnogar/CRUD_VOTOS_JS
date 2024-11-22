@@ -1,4 +1,4 @@
- Sistema de Gestión de Series
+# Sistema de Gestión de Series 🎬
 
 Un proyecto CRUD para la gestión de series, utilizando Node.js, Express y PostgreSQL. Permite agregar, editar, eliminar y votar por series, con una interfaz simple y funcional.
 
