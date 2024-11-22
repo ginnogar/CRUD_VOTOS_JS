@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Series</title>
+</head>
+<body>
+    <h1>Bienvenido a la Lista de Series</h1>
+
+    <!-- Lista de Series -->
+    <ul id="lista-peliculas">
+        <% peliculas.forEach(pelicula => { %>
+            <li id="pelicula-<%= pelicula.id_serie %>">
+                <strong><%= pelicula.serie %></strong> - 
+                <a href="<%= pelicula.enlace %>" target="_blank">Ver mas</a>
+                (<span id="votos-<%= pelicula.id_serie %>"><%= pelicula.votos %></span> votos)
+                <button onclick="votar('<%= pelicula.id_serie %>')">Votar</button>
+                <button onclick="eliminar('<%= pelicula.id_serie %>')">Eliminar</button>
+                <button onclick="mostrarFormularioEditar('<%= pelicula.id_serie %>')">Editar Titulo</button>
+            </li>
+        <% }) %>
+    </ul>
+
+   <!-- Sección para Agregar una Nueva Serie -->
+   <h2>Agregar una Nueva Serie</h2>
+   <form id="form-agregar">
+       <label for="serie">Nombre de la Serie:</label>
+       <input type="text" id="serie" name="serie" required>
+       <br>
+       <label for="enlace">Enlace (URL):</label>
+       <input type="url" id="enlace" name="enlace" required>
+       <br>
+       <button type="submit">Agregar Serie</button>
+   </form>    
+
+    <script>
+// Funcion de boton q recibe los datos de la serie 
+// y se conecta con la ruta q se conecta con la basededatos
+    
+        // Función para votar por una serie
+        async function votar(id_serie) {
+            try {
+                const response = await fetch(`/voto/${id_serie}`, { method: 'PUT' }); // Pasa el ID en la URL
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById(`votos-${id_serie}`).innerText = data.votos;
+
+                    // Reordena la lista de películas después de votar
+                    ordenarPeliculas();
+                }
+            } catch (err) {
+                console.error('Error al votar:', err);
+            }
+        }
+
+        // Función para eliminar una serie
+        async function eliminar(id_serie) {
+            try {
+                const response = await fetch('/delete', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_serie })
+                });
+
+                if (response.ok) {
+                    const li = document.getElementById(`pelicula-${id_serie}`);
+                    if (li) {
+                        li.remove();
+                    } else {
+                        console.warn(`El elemento con ID ${id_serie} no se encontró en el DOM.`);
+                    }
+                } else {
+                    const errorData = await response.json();
+                    console.error(`Error al eliminar: ${errorData.error}`);
+                }
+            } catch (err) {
+                console.error('Error al eliminar:', err);
+            }
+        }
+
+        // Función para agregar una nueva serie
+        document.getElementById('form-agregar').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const serie = document.getElementById('serie').value.trim();
+            const enlace = document.getElementById('enlace').value.trim();
+
+            if (!serie || !enlace) return;
+
+            try {
+                const response = await fetch('/serie', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ serie, enlace })
+                });
+
+                if (response.ok) {
+                    const nuevaSerie = await response.json();
+
+                    // Actualiza la lista con la nueva serie
+                    const lista = document.getElementById('lista-peliculas');
+                    lista.insertAdjacentHTML('beforeend', `
+                        <li id="pelicula-${nuevaSerie.id_serie}">
+                            <strong>${nuevaSerie.serie}</strong> - 
+                            <a href="${nuevaSerie.enlace}" target="_blank">Ver más</a>
+                            (<span id="votos-${nuevaSerie.id_serie}">${nuevaSerie.votos}</span> votos)
+                            <button onclick="votar('${nuevaSerie.id_serie}')">Votar</button>
+                            <button onclick="eliminar('${nuevaSerie.id_serie}')">Eliminar</button>
+                            <button onclick="editarTitulo('${nuevaSerie.id_serie}')">Editar Título</button>
+                        </li>
+                    `);
+                    
+                    ordenarPeliculas();
+
+                    // Limpia el formulario
+                    e.target.reset();
+                }
+            } catch (err) {
+                console.error('Error al agregar la serie:', err);
+            }
+        });
+        // Función para ordenar series por votos (Ascendente)
+        function ordenarPeliculas() {
+            const lista = document.getElementById('lista-peliculas');
+            const elementos = Array.from(lista.children);
+
+            // Ordena los elementos según el número de votos
+            elementos.sort((a, b) => {
+                const votosA = parseInt(a.querySelector('span[id^="votos-"]').innerText, 10);
+                const votosB = parseInt(b.querySelector('span[id^="votos-"]').innerText, 10);
+                return votosB - votosA;
+            });
+
+            // Reorganiza los elementos en el DOM
+            elementos.forEach(el => lista.appendChild(el));
+        }
+        
+        // Función para Editar el Título
+        function editarTitulo(id_serie) {
+            const li = document.getElementById(`pelicula-${id_serie}`);
+            console.log("Elemento <li> antes de editar:", li.innerHTML); // Log antes de modificar
+
+            const tituloActual = li.querySelector('strong').innerText;
+            li.innerHTML = `
+                <input type="text" id="nuevo-titulo-${id_serie}" value="${tituloActual}">
+                <button onclick="guardarTitulo('${id_serie}')">Guardar</button>
+                <button onclick="cancelarEdicionTitulo('${id_serie}', '${tituloActual}')">Cancelar</button>
+            `;
+
+            console.log("Elemento <li> después de editar:", li.innerHTML); // Log después de modificar
+        }
+
+
+        function cancelarEdicionTitulo(id_serie, tituloActual) {
+            const li = document.getElementById(`pelicula-${id_serie}`);
+            const enlace = li.querySelector('a').href;
+            const votos = li.querySelector(`span[id^="votos-"]`).innerText;
+
+            li.innerHTML = `
+                <strong>${tituloActual}</strong> - 
+                <a href="${enlace}" target="_blank">Ver más</a>
+                (<span id="votos-${id_serie}">${votos}</span> votos)
+                <button onclick="votar('${id_serie}')">Votar</button>
+                <button onclick="eliminar('${id_serie}')">Eliminar</button>
+                <button onclick="editarTitulo('${id_serie}')">Editar Título</button>
+            `;
+        }
+
+        async function guardarTitulo(id_serie) {
+            const nuevoTitulo = document.getElementById(`nuevo-titulo-${id_serie}`).value.trim();
+
+            if (!nuevoTitulo) {
+                alert('El título no puede estar vacío.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/modificar', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_serie, serie: nuevoTitulo })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const li = document.getElementById(`pelicula-${id_serie}`);
+
+                    li.innerHTML = `
+                        <strong>${data.serie.serie}</strong> - 
+                        <a href="${data.serie.enlace}" target="_blank">Ver más</a>
+                        (<span id="votos-${id_serie}">${data.serie.votos}</span> votos)
+                        <button onclick="votar('${id_serie}')">Votar</button>
+                        <button onclick="eliminar('${id_serie}')">Eliminar</button>
+                        <button onclick="editarTitulo('${id_serie}')">Editar Título</button>
+                    `;
+                } else {
+                    const errorData = await response.json();
+                    alert(`Error: ${errorData.error}`);
+                 }
+            } catch (err) {
+                console.error('Error al editar el título:', err);
+            }
+        }
+    </script>
+</body>
+</html>
